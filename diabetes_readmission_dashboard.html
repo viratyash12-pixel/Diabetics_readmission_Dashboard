@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Diabetes Hospital Readmissions Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);--bg:#f4f6f9;--card:#fff;--tx:#1f2933;--mut:#6b7785;--acc:#2f6fed;--hi:#e4572e;--grid:#e6e9ee;--hd:#1b2a41}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#11161d;--card:#1a212b;--tx:#e6eaf0;--mut:#93a0b1;--acc:#5b8def;--hi:#f07850;--grid:#2b3441;--hd:#0b1119}}
+:root[data-theme="dark"]{--bg:#11161d;--card:#1a212b;--tx:#e6eaf0;--mut:#93a0b1;--acc:#5b8def;--hi:#f07850;--grid:#2b3441;--hd:#0b1119}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--tx);font:14px system-ui,-apple-system,Segoe UI,sans-serif}
+.wrap{max-width:1200px;margin:0 auto;padding:16px}
+header{background:var(--hd);color:#fff;padding:18px 22px;border-radius:10px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:16px}
+h1{font-size:19px;margin:0}header small{opacity:.7;display:block;margin-top:3px;font-size:12px}
+.f{display:flex;gap:12px;flex-wrap:wrap}.f label{font-size:12px;opacity:.8;display:flex;gap:6px;align-items:center}
+select{padding:6px 10px;border-radius:5px;border:1px solid #ffffff44;background:#ffffff1a;color:#fff;font-size:13px}option{color:#111}
+.k{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px;margin-bottom:14px}
+.c{background:var(--card);border-radius:10px;padding:16px 20px;box-shadow:0 1px 3px #0001}
+.kl{font-size:12px;color:var(--mut);text-transform:uppercase;letter-spacing:.5px}.kv{font-size:27px;font-weight:700;margin-top:4px}
+.g{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:14px;margin-bottom:14px}
+h3{font-size:14px;margin:0 0 12px}.h{position:relative;height:230px}
+.t{overflow-x:auto;max-height:340px;overflow-y:auto}table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;padding:8px 10px;border-bottom:2px solid var(--grid);color:var(--mut);font-size:12px;text-transform:uppercase;cursor:pointer;position:sticky;top:0;background:var(--card);white-space:nowrap}
+td{padding:8px 10px;border-bottom:1px solid var(--grid)}tr:hover td{background:var(--bg)}
+footer{color:var(--mut);font-size:12px;margin-top:12px}.up{color:var(--hi)}.dn{color:#2a9d6f}
+</style></head><body><div class="wrap">
+<header><div><h1>🏥 Diabetes Hospital Readmissions</h1><small>30-day readmission rate · 101,766 visits · UCI Diabetes 130-US hospitals (1999-2008)</small></div>
+<div class="f"><label>Age <select id="fa"></select></label><label>Gender <select id="fg"><option value="-1">All</option><option value="0">Female</option><option value="1">Male</option></select></label></div></header>
+<section class="k">
+<div class="c"><div class="kl">Visits</div><div class="kv" id="k1"></div></div>
+<div class="c"><div class="kl">Readmitted &lt;30 days</div><div class="kv" id="k2"></div></div>
+<div class="c"><div class="kl">Readmission rate</div><div class="kv" id="k3"></div></div>
+<div class="c"><div class="kl">vs all patients</div><div class="kv" id="k4"></div></div></section>
+<section class="g">
+<div class="c"><h3>Rate by age group (selected age highlighted)</h3><div class="h"><canvas id="c_age"></canvas></div></div>
+<div class="c"><h3>Rate by earlier hospital admissions</h3><div class="h"><canvas id="c_prior"></canvas></div></div>
+<div class="c"><h3>Rate by length of stay</h3><div class="h"><canvas id="c_los"></canvas></div></div>
+<div class="c"><h3>Rate by insulin status</h3><div class="h"><canvas id="c_ins"></canvas></div></div>
+<div class="c"><h3>Rate by where the patient went after discharge</h3><div class="h"><canvas id="c_dis"></canvas></div></div></section>
+<section class="c"><h3>Detail table (click a header to sort)</h3><div class="t"><table><thead><tr>
+<th data-k="0">Group</th><th data-k="1">Category</th><th data-k="2">Visits</th><th data-k="3">Readmitted</th><th data-k="4">Rate %</th></tr></thead><tbody id="tb"></tbody></table></div></section>
+<footer>Numbers come from the same logic as the SQL queries in this project (readmitted = '&lt;30'). Patients who died or went to hospice are included. Rates show patterns, not causes.</footer></div>
+<script>
+const D={"age":[[0,0,83,1],[0,1,78,2],[1,0,402,24],[1,1,289,16],[2,0,1114,177],[2,1,543,59],[3,0,2162,242],[3,1,1613,182],[4,0,4811,511],[4,1,4874,516],[5,0,8572,851],[5,1,8684,817],[6,0,11061,1206],[6,1,11421,1296],[7,0,13985,1635],[7,1,12081,1434],[8,0,10515,1282],[8,1,6682,796],[9,0,2003,223],[9,1,790,87]],"prior":[[0,0,0,77,0],[0,0,1,5,1],[0,0,2,1,0],[0,1,0,72,2],[0,1,1,6,0],[1,0,0,290,14],[1,0,1,66,3],[1,0,2,23,3],[1,0,3,23,4],[1,1,0,220,5],[1,1,1,31,4],[1,1,2,16,4],[1,1,3,22,3],[2,0,0,683,37],[2,0,1,163,30],[2,0,2,71,22],[2,0,3,197,88],[2,1,0,374,21],[2,1,1,79,12],[2,1,2,32,8],[2,1,3,58,18],[3,0,0,1489,88],[3,0,1,313,39],[3,0,2,152,39],[3,0,3,208,76],[3,1,0,1066,76],[3,1,1,269,38],[3,1,2,113,24],[3,1,3,165,44],[4,0,0,3182,223],[4,0,1,803,95],[4,0,2,351,61],[4,0,3,475,132],[4,1,0,3350,235],[4,1,1,798,106],[4,1,2,321,58],[4,1,3,405,117],[5,0,0,5730,392],[5,0,1,1603,178],[5,0,2,603,102],[5,0,3,636,179],[5,1,0,6065,407],[5,1,1,1499,188],[5,1,2,565,96],[5,1,3,555,126],[6,0,0,7329,630],[6,0,1,2128,258],[6,0,2,843,136],[6,0,3,761,182],[6,1,0,7727,644],[6,1,1,2150,307],[6,1,2,808,145],[6,1,3,736,200],[7,0,0,9169,877],[7,0,1,2879,379],[7,0,2,1085,197],[7,0,3,852,182],[7,1,0,7894,754],[7,1,1,2454,331],[7,1,2,954,147],[7,1,3,779,202],[8,0,0,6762,698],[8,0,1,2240,301],[8,0,2,870,152],[8,0,3,643,131],[8,1,0,4275,421],[8,1,1,1453,185],[8,1,2,560,90],[8,1,3,394,100],[9,0,0,1330,130],[9,0,1,423,51],[9,0,2,148,26],[9,0,3,102,16],[9,1,0,543,52],[9,1,1,159,17],[9,1,2,50,9],[9,1,3,38,9]],"los":[[0,0,0,41,0],[0,0,1,35,1],[0,0,2,7,0],[0,1,0,45,1],[0,1,1,29,1],[0,1,2,3,0],[0,1,3,1,0],[1,0,0,223,12],[1,0,1,116,9],[1,0,2,40,2],[1,0,3,23,1],[1,1,0,145,6],[1,1,1,92,3],[1,1,2,21,4],[1,1,3,31,3],[2,0,0,446,75],[2,0,1,408,58],[2,0,2,170,32],[2,0,3,90,12],[2,1,0,241,26],[2,1,1,173,21],[2,1,2,75,7],[2,1,3,54,5],[3,0,0,834,93],[3,0,1,727,62],[3,0,2,390,47],[3,0,3,211,40],[3,1,0,639,61],[3,1,1,492,55],[3,1,2,304,40],[3,1,3,178,26],[4,0,0,1718,144],[4,0,1,1514,156],[4,0,2,982,121],[4,0,3,597,90],[4,1,0,1876,171],[4,1,1,1395,149],[4,1,2,997,114],[4,1,3,606,82],[5,0,0,2909,217],[5,0,1,2684,270],[5,0,2,1856,201],[5,0,3,1123,163],[5,1,0,3154,234],[5,1,1,2638,248],[5,1,2,1748,196],[5,1,3,1144,139],[6,0,0,3302,306],[6,0,1,3388,368],[6,0,2,2632,320],[6,0,3,1739,212],[6,1,0,3824,364],[6,1,1,3432,382],[6,1,2,2470,318],[6,1,3,1695,232],[7,0,0,3738,344],[7,0,1,4328,509],[7,0,2,3487,458],[7,0,3,2432,324],[7,1,0,3620,354],[7,1,1,3715,456],[7,1,2,2841,324],[7,1,3,1905,300],[8,0,0,2349,231],[8,0,1,3401,417],[8,0,2,2880,402],[8,0,3,1885,232],[8,1,0,1738,181],[8,1,1,2119,263],[8,1,2,1701,214],[8,1,3,1124,138],[9,0,0,421,42],[9,0,1,707,80],[9,0,2,550,73],[9,0,3,325,28],[9,1,0,167,12],[9,1,1,287,30],[9,1,2,210,27],[9,1,3,126,18]],"ins":[[0,0,0,12,0],[0,0,1,54,0],[0,0,2,9,1],[0,0,3,8,0],[0,1,0,16,0],[0,1,1,46,2],[0,1,2,10,0],[0,1,3,6,0],[1,0,0,64,3],[1,0,1,185,11],[1,0,2,82,4],[1,0,3,71,6],[1,1,0,46,1],[1,1,1,144,10],[1,1,2,56,4],[1,1,3,43,1],[2,0,0,318,33],[2,0,1,320,30],[2,0,2,228,59],[2,0,3,248,55],[2,1,0,125,6],[2,1,1,163,19],[2,1,2,139,18],[2,1,3,116,16],[3,0,0,900,78],[3,0,1,638,76],[3,0,2,304,43],[3,0,3,320,45],[3,1,0,573,60],[3,1,1,483,51],[3,1,2,276,29],[3,1,3,281,42],[4,0,0,2128,192],[4,0,1,1382,148],[4,0,2,583,74],[4,0,3,718,97],[4,1,0,1998,160],[4,1,1,1451,162],[4,1,2,692,95],[4,1,3,733,99],[5,0,0,3867,343],[5,0,1,2705,280],[5,0,2,910,98],[5,0,3,1090,130],[5,1,0,3913,327],[5,1,1,2677,257],[5,1,2,929,98],[5,1,3,1165,135],[6,0,0,5014,478],[6,0,1,3408,380],[6,0,2,1258,165],[6,0,3,1381,183],[6,1,0,5366,575],[6,1,1,3516,375],[6,1,2,1245,165],[6,1,3,1294,181],[7,0,0,6857,750],[7,0,1,4238,518],[7,0,2,1379,167],[7,0,3,1511,200],[7,1,0,6078,682],[7,1,1,3568,392],[7,1,2,1190,178],[7,1,3,1245,182],[8,0,0,5265,574],[8,0,1,3120,391],[8,0,2,1062,145],[8,0,3,1068,172],[8,1,0,3389,360],[8,1,1,1949,232],[8,1,2,685,89],[8,1,3,659,115],[9,0,0,1072,100],[9,0,1,558,73],[9,0,2,195,24],[9,0,3,178,26],[9,1,0,379,34],[9,1,1,244,26],[9,1,2,84,14],[9,1,3,83,13]],"dis":[[0,0,0,73,1],[0,0,1,1,0],[0,0,4,1,0],[0,0,5,1,0],[0,0,6,7,0],[0,1,0,72,2],[0,1,1,1,0],[0,1,4,1,0],[0,1,6,4,0],[1,0,0,363,22],[1,0,1,8,0],[1,0,2,1,1],[1,0,4,3,0],[1,0,6,27,1],[1,1,0,262,14],[1,1,1,6,0],[1,1,3,1,1],[1,1,4,7,0],[1,1,5,1,0],[1,1,6,12,1],[2,0,0,950,145],[2,0,1,58,12],[2,0,2,9,3],[2,0,3,3,1],[2,0,4,18,3],[2,0,5,4,0],[2,0,6,72,13],[2,1,0,455,49],[2,1,1,23,0],[2,1,2,11,3],[2,1,3,2,0],[2,1,4,14,3],[2,1,5,4,0],[2,1,6,34,4],[3,0,0,1815,183],[3,0,1,128,22],[3,0,2,37,10],[3,0,3,7,3],[3,0,4,50,12],[3,0,5,5,0],[3,0,6,120,12],[3,1,0,1266,138],[3,1,1,118,19],[3,1,2,38,2],[3,1,3,7,1],[3,1,4,56,7],[3,1,5,6,0],[3,1,6,122,15],[4,0,0,3715,329],[4,0,1,458,73],[4,0,2,163,31],[4,0,3,46,8],[4,0,4,114,30],[4,0,5,37,1],[4,0,6,278,39],[4,1,0,3733,375],[4,1,1,385,36],[4,1,2,140,19],[4,1,3,40,7],[4,1,4,186,33],[4,1,5,41,2],[4,1,6,349,44],[5,0,0,6050,486],[5,0,1,980,137],[5,0,2,526,84],[5,0,3,157,37],[5,0,4,288,55],[5,0,5,86,0],[5,0,6,485,52],[5,1,0,6202,489],[5,1,1,887,104],[5,1,2,445,66],[5,1,3,132,39],[5,1,4,397,60],[5,1,5,110,1],[5,1,6,511,58],[6,0,0,6808,608],[6,0,1,1596,182],[6,0,2,1227,180],[6,0,3,306,84],[6,0,4,341,60],[6,0,5,191,4],[6,0,6,592,88],[6,1,0,7628,747],[6,1,1,1329,164],[6,1,2,943,182],[6,1,3,239,67],[6,1,4,457,65],[6,1,5,233,5],[6,1,6,592,66],[7,0,0,6944,618],[7,0,1,2178,272],[7,0,2,2768,426],[7,0,3,433,94],[7,0,4,537,122],[7,0,5,379,9],[7,0,6,746,94],[7,1,0,6744,668],[7,1,1,1702,211],[7,1,2,1837,293],[7,1,3,344,92],[7,1,4,450,87],[7,1,5,358,6],[7,1,6,646,77],[8,0,0,3623,350],[8,0,1,1692,228],[8,0,2,3652,483],[8,0,3,393,93],[8,0,4,355,74],[8,0,5,421,9],[8,0,6,379,45],[8,1,0,2821,288],[8,1,1,1080,143],[8,1,2,1716,241],[8,1,3,199,34],[8,1,4,244,55],[8,1,5,342,4],[8,1,6,280,31],[9,0,0,494,64],[9,0,1,260,36],[9,0,2,942,91],[9,0,3,69,17],[9,0,4,36,7],[9,0,5,130,1],[9,0,6,72,7],[9,1,0,214,26],[9,1,1,120,14],[9,1,2,314,35],[9,1,3,26,4],[9,1,4,16,4],[9,1,5,74,1],[9,1,6,26,3]]}, L={"ages":["[0-10)","[10-20)","[20-30)","[30-40)","[40-50)","[50-60)","[60-70)","[70-80)","[80-90)","[90-100)"],"prior":["0","1","2","3+"],"los":["1-2 days","3-4 days","5-7 days","8-14 days"],"ins":["No","Steady","Up","Down"],"dis":["Home","Home health","Nursing facility","Rehab / long-term","Other hospital","Died / hospice","Other / unknown"]};
+const names={age:'Age',prior:'Earlier admissions',los:'Stay length',ins:'Insulin',dis:'Discharge'};
+const keys=['age','prior','los','ins','dis'], charts={};
+let sortK=null, sortAsc=true, rows=[];
+const fa=document.getElementById('fa');
+fa.innerHTML='<option value="-1">All</option>'+L.ages.map((a,i)=>`<option value="${i}">${a}</option>`).join('');
+const tot=D.age.reduce((s,x)=>[s[0]+x[2],s[1]+x[3]],[0,0]), all=100*tot[1]/tot[0];
+const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+function agg(k,a,g){ // returns [n,r] per category for the filters
+  const cats=k==='age'?L.ages:L[k], out=cats.map(()=>[0,0]);
+  D[k].forEach(x=>{ if(g>=0&&x[1]!==g)return; if(k!=='age'&&a>=0&&x[0]!==a)return;
+    const i=k==='age'?x[0]:x[2], n=k==='age'?x[2]:x[3], r=k==='age'?x[3]:x[4]; out[i][0]+=n; out[i][1]+=r;});
+  return out;}
+function update(){
+  const a=+fa.value, g=+document.getElementById('fg').value; rows=[];
+  keys.forEach(k=>{const v=agg(k,a,g), cats=k==='age'?L.ages:L[k];
+    v.forEach((x,i)=>{ if(x[0]) rows.push([names[k],cats[i],x[0],x[1],100*x[1]/x[0]]);});
+    const data=v.map(x=>x[0]?+(100*x[1]/x[0]).toFixed(2):0);
+    const col=k==='age'?v.map((_,i)=>i===a?css('--hi'):css('--acc')):css('--acc');
+    if(!charts[k]){charts[k]=new Chart(document.getElementById('c_'+k),{type:'bar',
+      data:{labels:cats,datasets:[{data,backgroundColor:col,borderRadius:3}]},
+      options:{indexAxis:k==='dis'?'y':'x',responsive:true,maintainAspectRatio:false,animation:false,
+        plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>{const x=agg(k,+fa.value,+document.getElementById('fg').value)[c.dataIndex];return `${c.parsed[k==='dis'?'x':'y']}%  (${x[0].toLocaleString()} visits)`}}}},
+        scales:{[k==='dis'?'x':'y']:{beginAtZero:true,ticks:{callback:v=>v+'%',color:css('--mut')},grid:{color:css('--grid')}},
+                [k==='dis'?'y':'x']:{ticks:{color:css('--mut')},grid:{display:false}}}}});}
+    else{charts[k].data.datasets[0].data=data;charts[k].data.datasets[0].backgroundColor=col;charts[k].update('none');}});
+  const s=agg('prior',a,g).reduce((s,x)=>[s[0]+x[0],s[1]+x[1]],[0,0]), rate=s[0]?100*s[1]/s[0]:0, gap=rate-all;
+  k1.textContent=s[0].toLocaleString(); k2.textContent=s[1].toLocaleString(); k3.textContent=rate.toFixed(2)+'%';
+  k4.innerHTML=`<span class="${gap>0.005?'up':'dn'}">${gap>=0?'+':''}${gap.toFixed(2)} pts</span>`;
+  draw();}
+function draw(){
+  const r=rows.slice(); if(sortK!==null) r.sort((x,y)=>(x[sortK]>y[sortK]?1:-1)*(sortAsc?1:-1));
+  tb.innerHTML=r.map(x=>`<tr><td>${x[0]}</td><td>${x[1]}</td><td>${x[2].toLocaleString()}</td><td>${x[3].toLocaleString()}</td><td>${x[4].toFixed(2)}</td></tr>`).join('');}
+document.querySelectorAll('th').forEach(h=>h.onclick=()=>{const k=+h.dataset.k; sortAsc=sortK===k?!sortAsc:true; sortK=k; draw();});
+fa.onchange=update; document.getElementById('fg').onchange=update; update();
+</script></body></html>
